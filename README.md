@@ -7,8 +7,8 @@
 
 
 > To Do:
-- add renaming / mv ? 
 - add ability to rearrange buffers
+- add renaming / mv ? 
 
 > Default keybinds
 ```
@@ -16,4 +16,7 @@
     :QuickBufDebug prints the contents of M.active_buffers
 ```
 
+New Feature:
+    - Adding a new entry will attempt to load if that file exists, otherwise it will create it
+    - Can now delete parent window, it will replace parent with a blank buffer 
 thats all thanks
