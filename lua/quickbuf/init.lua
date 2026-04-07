@@ -103,9 +103,6 @@ local create_win = function()
         vim.api.nvim_set_option_value("modifiable",true, { buf = M.state.buf} )
     end
 
-    remove_closed_buffers()
-    check_new_buffers()
-    populate_win()
 
     M.state.win = vim.api.nvim_open_win(M.state.buf, true, {
         relative = "editor",
@@ -116,6 +113,10 @@ local create_win = function()
         --style = "minimal",
         border = "rounded",
     })
+
+    remove_closed_buffers()
+    check_new_buffers()
+    populate_win()
 end
 
 local close = function()
@@ -126,9 +127,6 @@ end
 
 M.setup = function()
     init()
-
-
-    print(vim.inspect(M.active_buffers))
 
     vim.api.nvim_create_user_command("QuickBufToggle", function()
         -- open and populate if closed
@@ -166,20 +164,11 @@ M.setup = function()
     local group = vim.api.nvim_create_augroup("FloatingBuffers", { clear = true })
     vim.api.nvim_create_autocmd({'InsertLeave','TextChanged'}, {
         group = group,
-        buffer = M.buf,
-        callback = function() 
+        buffer = M.state.buf,
+        callback = function()
             close_deleted_buffers()
-        end,  -- pass function, don't call it
+        end,
     })
-
-
-
-
-
-
-
-
-
     vim.api.nvim_create_user_command("QuickBufDebug", function()
         print(vim.inspect(M.active_buffers))
     end, {})
