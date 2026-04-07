@@ -7,4 +7,13 @@
 
 
 > To Do:
-- 
+- add renaming / mv ? 
+- add ability to rearrange buffers
+
+> Default keybinds
+```
+   <leader><leader> = Toggle QuickBuf meun (same as :QuickBufToggle)
+    :QuickBufDebug prints the contents of M.active_buffers
+```
+
+thats all thanks
