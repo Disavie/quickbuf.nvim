@@ -8,6 +8,14 @@ M.state = {
 }
 M.parent_win = -1
 
+local populate_win = function()
+    local names = {}
+    for name, id in pairs(M.active_buffers) do
+        table.insert(names,name)
+    end
+    vim.api.nvim_buf_set_lines(M.state.buf,0,-1, false,names)
+end
+
 local init = function()
     for _, bid in ipairs(vim.api.nvim_list_bufs()) do
         --sort out to only listed buffers 
@@ -19,7 +27,36 @@ local init = function()
             end
         end
     end
+end
 
+local check_new_buffers = function()
+    for _, bid in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.bo[bid].buflisted then
+            --truncate name
+            local name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bid), ":~:.")
+            if M.active_buffers[name] == nil then
+                M.active_buffers[name] = bid
+            end
+        end
+    end
+end
+
+local remove_closed_buffers = function()
+    local new_active = {}
+    local bids = vim.api.nvim_list_bufs()
+
+    -- Mark all active buffers
+    for _, bid in ipairs(bids) do
+        if vim.bo[bid].buflisted then
+            local name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bid), ":~:.")
+            if name ~= "" and name ~= "~"  then
+                if M.active_buffers[name] == bid then
+                    new_active[name] = bid
+                end
+            end
+        end
+    end
+    M.active_buffers = new_active
 end
 
 local create_win = function()
@@ -40,6 +77,10 @@ local create_win = function()
         vim.api.nvim_set_option_value("modifiable",true, { buf = M.state.buf} )
     end
 
+    remove_closed_buffers()
+    check_new_buffers()
+    populate_win()
+
     M.state.win = vim.api.nvim_open_win(M.state.buf, true, {
         relative = "editor",
         width = width,
@@ -49,21 +90,48 @@ local create_win = function()
         --style = "minimal",
         border = "rounded",
     })
+end
 
-    print("test")
+local close = function()
+    if vim.api.nvim_win_is_valid(M.state.win) then
+        vim.api.nvim_win_hide(M.state.win)
+    end
 end
 
 M.setup = function()
     init()
+
+
     print(vim.inspect(M.active_buffers))
 
     vim.api.nvim_create_user_command("QuickBufToggle", function()
+        -- open and populate if closed
         if not vim.api.nvim_win_is_valid(M.state.win) then
             create_win()
         else
+        -- hide
             vim.api.nvim_win_hide(M.state.win)
         end
     end, {} )
+    vim.keymap.set("n",'<leader><leader>',function() vim.cmd("QuickBufToggle") end)
+
+    vim.keymap.set("n", "<Esc>", function() close() end, { buffer = M.state.buf, nowait = true })
+    vim.keymap.set("n", "<C-c>", function() close() end, { buffer = M.state.buf, nowait = true })
+
+
+
+
+
+
+
+
+
+
+    vim.api.nvim_create_user_command("QuickBufDebug", function()
+        print(vim.inspect(M.active_buffers))
+    end, {})
+
+
 end
 
 return M
