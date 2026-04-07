@@ -8,6 +8,11 @@ M.state = {
 }
 M.parent_win = -1
 
+local function is_dir(path)
+  local stat = vim.uv.fs_stat(path)
+  return stat and stat.type == "directory"
+end
+
 local populate_win = function()
     local names = {}
     for name, id in pairs(M.active_buffers) do
@@ -36,9 +41,13 @@ local check_new_buffers = function()
     for _, bid in ipairs(vim.api.nvim_list_bufs()) do
         if vim.bo[bid].buflisted then
             --truncate name
-            local name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bid), ":~:.")
-            if M.active_buffers[name] == nil then
-                M.active_buffers[name] = bid
+            local name =vim.api.nvim_buf_get_name(bid)
+
+            if is_dir(name) ~= nil then
+                name = vim.fn.fnamemodify(name, ":~:.")
+                if M.active_buffers[name] == nil then
+                    M.active_buffers[name] = bid
+                end
             end
         end
     end
@@ -50,10 +59,16 @@ local remove_closed_buffers = function()
     -- Mark all active buffers
     for _, bid in ipairs(bids) do
         if vim.bo[bid].buflisted then
-            local name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bid), ":~:.")
-            if name ~= "" and name ~= "~"  then
-                if M.active_buffers[name] == bid then
-                    new_active[name] = bid
+
+            local name =vim.api.nvim_buf_get_name(bid)
+
+            if is_dir(name) ~= nil then
+                print(is_dir(name))
+                name = vim.fn.fnamemodify(name, ":~:.")
+                if name ~= "" and name ~= "~"  then
+                    if M.active_buffers[name] == bid then
+                        new_active[name] = bid
+                    end
                 end
             end
         end
@@ -81,10 +96,10 @@ local close_deleted_buffers = function()
                     local placeholder = "~"
                     M.active_buffers[placeholder] = new_buf
                     vim.api.nvim_win_set_buf(M.parent_win,M.active_buffers[placeholder])
+                end
 
                 M.active_buffers[name] = nil
                 vim.cmd("bd"..b)
-                end
             end
         end
 
