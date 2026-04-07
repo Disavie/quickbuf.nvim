@@ -27,6 +27,9 @@ local init = function()
             end
         end
     end
+
+    M.state.buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_option_value("modifiable",true, { buf = M.state.buf} )
 end
 
 local check_new_buffers = function()
@@ -96,13 +99,6 @@ local create_win = function()
 
      local buf = nil
 
-    if vim.api.nvim_buf_is_valid(M.state.buf) then
-        --refresh list
-    else
-        M.state.buf = vim.api.nvim_create_buf(false, true)
-        vim.api.nvim_set_option_value("modifiable",true, { buf = M.state.buf} )
-    end
-
 
     M.state.win = vim.api.nvim_open_win(M.state.buf, true, {
         relative = "editor",
@@ -137,6 +133,8 @@ M.setup = function()
             vim.api.nvim_win_hide(M.state.win)
         end
     end, {} )
+
+
     vim.keymap.set("n",'<leader><leader>',function() vim.cmd("QuickBufToggle") end)
 
     vim.keymap.set("n", "<Esc>", function() close() end, { buffer = M.state.buf, nowait = true })
@@ -158,7 +156,7 @@ M.setup = function()
             if vim.api.nvim_win_is_valid(M.state.win) then
                 vim.api.nvim_win_hide(M.state.win)
             end
-        end)
+        end, {buffer = M.state.buf, nowait = true})
 
 
     local group = vim.api.nvim_create_augroup("FloatingBuffers", { clear = true })
