@@ -44,7 +44,6 @@ end
 local remove_closed_buffers = function()
     local new_active = {}
     local bids = vim.api.nvim_list_bufs()
-
     -- Mark all active buffers
     for _, bid in ipairs(bids) do
         if vim.bo[bid].buflisted then
@@ -57,6 +56,33 @@ local remove_closed_buffers = function()
         end
     end
     M.active_buffers = new_active
+end
+
+local close_deleted_buffers = function()
+
+        local current = vim.api.nvim_list_bufs()
+        local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+
+        local current_set = {}
+        for _, bname in ipairs(lines) do
+            current_set[bname] = true
+        end
+        --print(vim.inspect(current_set))
+        --print(vim.inspect(state.buffer_ids))
+
+        for name, b in pairs(M.active_buffers) do
+            if not current_set[name] then
+
+                if M.active_buffers[name] == vim.api.nvim_win_get_buf(M.parent_win) then
+                    print("Cannot delete parent window")
+                    populate_win()
+                else
+                    M.active_buffers[name] = nil
+                    vim.cmd("bd"..b)
+                end
+            end
+        end
+
 end
 
 local create_win = function()
@@ -118,6 +144,33 @@ M.setup = function()
     vim.keymap.set("n", "<Esc>", function() close() end, { buffer = M.state.buf, nowait = true })
     vim.keymap.set("n", "<C-c>", function() close() end, { buffer = M.state.buf, nowait = true })
 
+    vim.keymap.set("n", "<CR>", function()
+            local word = vim.fn.expand("<cWORD>")
+            if M.active_buffers[word] == nil then
+                local new_buf = vim.api.nvim_create_buf(true, false)
+                vim.api.nvim_buf_set_name(new_buf,word)
+
+                M.active_buffers[word] = new_buf
+            end
+            if not vim.api.nvim_win_is_valid(M.parent_win) then
+                vim.cmd.split()
+            end
+            vim.api.nvim_win_set_buf(M.parent_win,M.active_buffers[word])
+
+            if vim.api.nvim_win_is_valid(M.state.win) then
+                vim.api.nvim_win_hide(M.state.win)
+            end
+        end)
+
+
+    local group = vim.api.nvim_create_augroup("FloatingBuffers", { clear = true })
+    vim.api.nvim_create_autocmd({'InsertLeave','TextChanged'}, {
+        group = group,
+        buffer = M.buf,
+        callback = function() 
+            close_deleted_buffers()
+        end,  -- pass function, don't call it
+    })
 
 
 
