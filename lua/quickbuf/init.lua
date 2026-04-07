@@ -77,11 +77,13 @@ local close_deleted_buffers = function()
             if not current_set[name] then
 
                 if M.active_buffers[name] == vim.api.nvim_win_get_buf(M.parent_win) then
-                    print("Cannot delete parent window")
-                    populate_win()
-                else
-                    M.active_buffers[name] = nil
-                    vim.cmd("bd"..b)
+                    local new_buf = vim.api.nvim_create_buf(true, false)
+                    local placeholder = "~"
+                    M.active_buffers[placeholder] = new_buf
+                    vim.api.nvim_win_set_buf(M.parent_win,M.active_buffers[placeholder])
+
+                M.active_buffers[name] = nil
+                vim.cmd("bd"..b)
                 end
             end
         end
@@ -143,8 +145,12 @@ M.setup = function()
     vim.keymap.set("n", "<CR>", function()
             local word = vim.fn.expand("<cWORD>")
             if M.active_buffers[word] == nil then
+
                 local new_buf = vim.api.nvim_create_buf(true, false)
                 vim.api.nvim_buf_set_name(new_buf,word)
+                vim.api.nvim_buf_call(new_buf, function()
+                    vim.cmd("edit")
+                end)
 
                 M.active_buffers[word] = new_buf
             end
