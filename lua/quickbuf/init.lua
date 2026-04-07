@@ -188,11 +188,10 @@ M.setup = function()
             close_deleted_buffers()
         end,
     })
-    vim.api.nvim_create_user_command("QuickBufDebug", function()
+    vim.api.nvim_create_user_command("QuickBufLs", function()
         print(vim.inspect(M.active_buffers))
+
     end, {})
-
-
 end
 
 return M
