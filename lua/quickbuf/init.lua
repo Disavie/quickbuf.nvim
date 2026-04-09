@@ -7,6 +7,7 @@ M.state = {
     win = -1
 }
 M.parent_win = -1
+_G.statusline_input = ""
 
 local function is_dir(path)
   local stat = vim.uv.fs_stat(path)
@@ -76,33 +77,50 @@ local remove_closed_buffers = function()
     M.active_buffers = new_active
 end
 
+local prompt = function()
+    local input = vim.fn.input( { prompt = "This buffer is not saved are you sure you want to delete it? [y/n] "} )
+    if input == "y" then
+        return true
+    end
+    return false
+end
+
 local close_deleted_buffers = function()
 
-        local current = vim.api.nvim_list_bufs()
-        local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+    local current = vim.api.nvim_list_bufs()
+    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
 
-        local current_set = {}
-        for _, bname in ipairs(lines) do
-            current_set[bname] = true
-        end
-        --print(vim.inspect(current_set))
-        --print(vim.inspect(state.buffer_ids))
+    local current_set = {}
+    for _, bname in ipairs(lines) do
+        current_set[bname] = true
+    end
 
-        for name, b in pairs(M.active_buffers) do
-            if not current_set[name] then
+    for name, b in pairs(M.active_buffers) do
+        if not current_set[name] then
 
-                if M.active_buffers[name] == vim.api.nvim_win_get_buf(M.parent_win) then
-                    local new_buf = vim.api.nvim_create_buf(true, false)
-                    local placeholder = "~"
-                    M.active_buffers[placeholder] = new_buf
-                    vim.api.nvim_win_set_buf(M.parent_win,M.active_buffers[placeholder])
+            if M.active_buffers[name] == vim.api.nvim_win_get_buf(M.parent_win) then
+                local new_buf = vim.api.nvim_create_buf(true, false)
+                local placeholder = "~"
+                M.active_buffers[placeholder] = new_buf
+                vim.api.nvim_win_set_buf(M.parent_win,M.active_buffers[placeholder])
+            end
+
+            local ismodified = vim.api.nvim_get_option_value("modified", { buf = b} )
+            if ismodified then
+                local v = prompt()
+                if v then
+                    print("here we go!")
+                    M.active_buffers[name] = nil
+                    vim.cmd("bd!"..b)
+                else
+                    populate_win()
                 end
-
+            else
                 M.active_buffers[name] = nil
                 vim.cmd("bd"..b)
             end
         end
-
+    end
 end
 
 local create_win = function()
@@ -198,9 +216,15 @@ M.setup = function()
     end, {})
 
     vim.api.nvim_create_user_command("QuickBufDebug", function()
-        print(vim.inspect(vim.api.nvim_win_get_cursor(M.state.win)))
+        vim.ui.input( { prompt = "This buffer is not saved are you sure you want to delete it? [y/n]"}, function(input)
+            if input == "y" then
+                print("ok")
+            else
+                print("dang")
+            end
+        end)
     end, {})
 end
 
-return M
 
+return M
