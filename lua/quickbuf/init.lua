@@ -158,7 +158,10 @@ M.setup = function()
     vim.keymap.set("n", "<C-c>", function() close() end, { buffer = M.state.buf, nowait = true })
 
     vim.keymap.set("n", "<CR>", function()
-            local word = vim.fn.expand("<cWORD>")
+            local lineno = vim.api.nvim_win_get_cursor(M.state.win)[1]
+            local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+            local word = lines[lineno]
+
             if M.active_buffers[word] == nil then
 
                 local new_buf = vim.api.nvim_create_buf(true, false)
@@ -191,6 +194,11 @@ M.setup = function()
     vim.api.nvim_create_user_command("QuickBufLs", function()
         print(vim.inspect(M.active_buffers))
 
+
+    end, {})
+
+    vim.api.nvim_create_user_command("QuickBufDebug", function()
+        print(vim.inspect(vim.api.nvim_win_get_cursor(M.state.win)))
     end, {})
 end
 
