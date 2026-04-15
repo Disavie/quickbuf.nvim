@@ -8,6 +8,7 @@ M.state = {
 }
 M.parent_win = -1
 _G.statusline_input = ""
+local hide_unnamed_buffers = true
 
 local function is_dir(path)
   local stat = vim.uv.fs_stat(path)
@@ -64,7 +65,7 @@ local remove_closed_buffers = function()
 
             if is_dir(name) ~= nil then
                 name = vim.fn.fnamemodify(name, ":~:.")
-                if name ~= "" and name ~= "~"  then
+                if hide_unnamed_buffers and name ~= "" and name ~= "~"  then
                     if M.active_buffers[name] == bid then
                         new_active[name] = bid
                     end
@@ -180,10 +181,16 @@ M.setup = function()
             if M.active_buffers[word] == nil then -- not in list of active buffer
 
                 local new_buf = vim.api.nvim_create_buf(true, false)
-                vim.api.nvim_buf_set_name(new_buf,word)
-                vim.api.nvim_buf_call(new_buf, function()
-                    vim.cmd("edit")
-                end)
+                if word and word ~= nil and word ~= "" then
+                    print("got here" .. word)
+                    vim.api.nvim_buf_set_name(new_buf,word)
+                    --vim.api.nvim_set_current_buf(new_buf)
+                    vim.api.nvim_buf_call(new_buf, function()
+                        vim.cmd("edit")
+                    end)
+                else
+                    vim.api.nvim_set_current_buf(new_buf)
+                end
 
                 M.active_buffers[word] = new_buf
             end
