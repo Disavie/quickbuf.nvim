@@ -10,15 +10,39 @@ M.parent_win = -1
 _G.statusline_input = ""
 local hide_unnamed_buffers = true
 
+local function is_normal_buffer(bufnr)
+    if not vim.api.nvim_buf_is_loaded(bufnr) then
+        return false
+    end
+
+    local bt = vim.bo[bufnr].buftype
+    local listed = vim.bo[bufnr].buflisted
+
+    return bt == "" and listed
+end
+
+local remove_self = function()
+   local self = vim.api.nvim_win_get_buf(0)
+   for name, bid in pairs(M.active_buffers) do
+        if bid == self then
+            M.active_buffers[name] = nil
+        end
+   end
+end
+
+
 local function is_dir(path)
   local stat = vim.uv.fs_stat(path)
-  return stat and stat.type == "directory"
+  return stat ~= nil and stat.type == "directory" or false
 end
 
 local populate_win = function()
+    remove_self()
     local names = {}
     for name, id in pairs(M.active_buffers) do
-        table.insert(names,name)
+        if id ~= nil then
+            table.insert(names,name)
+        end
     end
     vim.api.nvim_buf_set_lines(M.state.buf,0,-1, false,names)
 end
@@ -26,9 +50,7 @@ end
 local init = function()
     for _, bid in ipairs(vim.api.nvim_list_bufs()) do
         --sort out to only listed buffers 
-        if vim.api.nvim_buf_is_loaded(bid) then
-        --if vim.bo[bid].buflisted then
-            --truncate name
+        if is_normal_buffer(bid) then
             local name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bid), ":~:.")
             if name ~= "" then
                 M.active_buffers[name] = bid
@@ -41,10 +63,16 @@ local init = function()
 end
 
 local check_new_buffers = function()
+    --print(vim.inspect(M.active_buffers))
     for _, bid in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_loaded(bid) then
+        if is_normal_buffer(bid) then
             local name =vim.api.nvim_buf_get_name(bid)
-            if is_dir(name) ~= nil then
+            if name == "" and not hide_unnamed_buffers then
+                name = "Unnamed "..bid
+                if M.active_buffers[name] == nil then
+                    M.active_buffers[name] = bid
+                end
+            elseif is_dir(name) ~= nil then
                 name = vim.fn.fnamemodify(name, ":~:.")
                 if M.active_buffers[name] == nil then
                     M.active_buffers[name] = bid
@@ -54,18 +82,23 @@ local check_new_buffers = function()
     end
 end
 
+
 local remove_closed_buffers = function()
     local new_active = {}
     local bids = vim.api.nvim_list_bufs()
     -- Mark all active buffers
     for _, bid in ipairs(bids) do
 
-        if vim.api.nvim_buf_is_loaded(bid) then
+        if is_normal_buffer(bid) then
             local name =vim.api.nvim_buf_get_name(bid)
-
-            if is_dir(name) ~= nil then
+            if name == "" and not hide_unnamed_buffers then
+                name = "Unnamed "..bid
+                if M.active_buffers[name] == bid then
+                    new_active[name] = bid
+                end
+            elseif is_dir(name) ~= nil then
                 name = vim.fn.fnamemodify(name, ":~:.")
-                if hide_unnamed_buffers and name ~= "" and name ~= "~"  then
+                if name ~= "" and name ~= "~"  then
                     if M.active_buffers[name] == bid then
                         new_active[name] = bid
                     end
@@ -75,6 +108,7 @@ local remove_closed_buffers = function()
     end
     M.active_buffers = new_active
 end
+
 
 local prompt = function()
     local input = vim.fn.input( { prompt = "This buffer is not saved are you sure you want to delete it? [y/n] "} )
@@ -86,14 +120,13 @@ end
 
 local close_deleted_buffers = function()
 
-    local current = vim.api.nvim_list_bufs()
+            print("TESTTESTTEST")
     local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
 
     local current_set = {}
     for _, bname in ipairs(lines) do
         current_set[bname] = true
     end
-
     for name, b in pairs(M.active_buffers) do
         if not current_set[name] then
             if M.active_buffers[name] == vim.api.nvim_win_get_buf(M.parent_win) then
@@ -114,6 +147,7 @@ local close_deleted_buffers = function()
                     populate_win()
                 end
             else
+                print("removing" .. name)
                 M.active_buffers[name] = nil
                 vim.cmd("bd"..b)
             end
@@ -143,8 +177,8 @@ local create_win = function()
         border = "rounded",
     })
 
-    check_new_buffers()
     remove_closed_buffers()
+    check_new_buffers()
     populate_win()
 end
 
@@ -209,10 +243,7 @@ M.setup = function()
         group = group,
         buffer = M.state.buf,
         callback = function()
-
             close_deleted_buffers()
-            check_new_buffers()
-    --        populate_win()
         end,
     })
     vim.api.nvim_create_user_command("QuickBufLs", function()
