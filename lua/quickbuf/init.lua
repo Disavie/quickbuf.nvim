@@ -25,10 +25,11 @@ end
 local init = function()
     for _, bid in ipairs(vim.api.nvim_list_bufs()) do
         --sort out to only listed buffers 
-        if vim.bo[bid].buflisted then
+        if vim.api.nvim_buf_is_loaded(bid) then
+        --if vim.bo[bid].buflisted then
             --truncate name
             local name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bid), ":~:.")
-            if name ~= "" and name ~= "~"  then
+            if name ~= "" then
                 M.active_buffers[name] = bid
             end
         end
@@ -40,10 +41,8 @@ end
 
 local check_new_buffers = function()
     for _, bid in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.bo[bid].buflisted then
-            --truncate name
+        if vim.api.nvim_buf_is_loaded(bid) then
             local name =vim.api.nvim_buf_get_name(bid)
-
             if is_dir(name) ~= nil then
                 name = vim.fn.fnamemodify(name, ":~:.")
                 if M.active_buffers[name] == nil then
@@ -59,12 +58,11 @@ local remove_closed_buffers = function()
     local bids = vim.api.nvim_list_bufs()
     -- Mark all active buffers
     for _, bid in ipairs(bids) do
-        if vim.bo[bid].buflisted then
 
+        if vim.api.nvim_buf_is_loaded(bid) then
             local name =vim.api.nvim_buf_get_name(bid)
 
             if is_dir(name) ~= nil then
-                print(is_dir(name))
                 name = vim.fn.fnamemodify(name, ":~:.")
                 if name ~= "" and name ~= "~"  then
                     if M.active_buffers[name] == bid then
@@ -97,7 +95,6 @@ local close_deleted_buffers = function()
 
     for name, b in pairs(M.active_buffers) do
         if not current_set[name] then
-
             if M.active_buffers[name] == vim.api.nvim_win_get_buf(M.parent_win) then
                 local new_buf = vim.api.nvim_create_buf(true, false)
                 local placeholder = "~"
@@ -145,8 +142,8 @@ local create_win = function()
         border = "rounded",
     })
 
-    remove_closed_buffers()
     check_new_buffers()
+    remove_closed_buffers()
     populate_win()
 end
 
@@ -180,7 +177,7 @@ M.setup = function()
             local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
             local word = lines[lineno]
 
-            if M.active_buffers[word] == nil then
+            if M.active_buffers[word] == nil then -- not in list of active buffer
 
                 local new_buf = vim.api.nvim_create_buf(true, false)
                 vim.api.nvim_buf_set_name(new_buf,word)
@@ -194,7 +191,6 @@ M.setup = function()
                 vim.cmd.split()
             end
             vim.api.nvim_win_set_buf(M.parent_win,M.active_buffers[word])
-
             if vim.api.nvim_win_is_valid(M.state.win) then
                 vim.api.nvim_win_hide(M.state.win)
             end
@@ -206,7 +202,10 @@ M.setup = function()
         group = group,
         buffer = M.state.buf,
         callback = function()
+
             close_deleted_buffers()
+            check_new_buffers()
+    --        populate_win()
         end,
     })
     vim.api.nvim_create_user_command("QuickBufLs", function()
@@ -224,6 +223,16 @@ M.setup = function()
             end
         end)
     end, {})
+
+    vim.api.nvim_create_user_command("QuickBufRestart", function()
+        M.active_buffers = {}
+        create_win()
+        M.active_buffers = {}
+        vim.cmd("QuickBufToggle")
+    end, {})
+
+
+
 end
 
 
