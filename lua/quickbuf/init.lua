@@ -72,7 +72,7 @@ local check_new_buffers = function()
                 if M.active_buffers[name] == nil then
                     M.active_buffers[name] = bid
                 end
-            elseif is_dir(name) ~= nil then
+            elseif not is_dir(name) ~= nil then
                 name = vim.fn.fnamemodify(name, ":~:.")
                 if M.active_buffers[name] == nil then
                     M.active_buffers[name] = bid
@@ -96,7 +96,7 @@ local remove_closed_buffers = function()
                 if M.active_buffers[name] == bid then
                     new_active[name] = bid
                 end
-            elseif is_dir(name) ~= nil then
+            elseif not is_dir(name) ~= nil then
                 name = vim.fn.fnamemodify(name, ":~:.")
                 if name ~= "" and name ~= "~"  then
                     if M.active_buffers[name] == bid then
@@ -155,6 +155,23 @@ local close_deleted_buffers = function()
     end
 end
 
+local function resolve_path(input)
+    input = vim.trim(input)
+    local expanded = vim.fn.expand(input) -- handles ~ and $VARS
+    if not expanded:match("^/") then
+        local cwd = vim.api.nvim_win_is_valid(M.parent_win)
+            and vim.fn.getcwd(M.parent_win)
+            or vim.fn.getcwd()
+        expanded = cwd .. "/" .. expanded
+    end
+    return vim.fs.normalize(expanded) -- also collapses "." and ".."
+end
+
+-- One canonical key format used everywhere
+local function display_name(abs)
+    return vim.fn.fnamemodify(abs, ":~:.")
+end
+
 local create_win = function()
     M.parent_win = vim.api.nvim_get_current_win()
 
@@ -208,70 +225,68 @@ M.setup = function()
     vim.keymap.set("n", "<C-c>", function() close() end, { buffer = M.state.buf, nowait = true })
 
     vim.keymap.set("n", "<CR>", function()
-            local lineno = vim.api.nvim_win_get_cursor(M.state.win)[1]
-            local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-            local word = lines[lineno]
+        local lineno = vim.api.nvim_win_get_cursor(M.state.win)[1]
+        local lines = vim.api.nvim_buf_get_lines(M.state.buf, 0, -1, false)
+        local word = lines[lineno]
+        if not word or vim.trim(word) == "" then
+            return
+        end
 
-            if M.active_buffers[word] == nil then -- not in list of active buffer
+        -- Existing entries are already keyed by display name; new ones need resolving
+        local key = word
+        if M.active_buffers[key] == nil then
+            local abs = resolve_path(word)
+            key = display_name(abs)
 
-                local new_buf = vim.api.nvim_create_buf(true, false)
-                if word and word ~= nil and word ~= "" then
-                    print("got here" .. word)
-                    vim.api.nvim_buf_set_name(new_buf,word)
-                    --vim.api.nvim_set_current_buf(new_buf)
-                    vim.api.nvim_buf_call(new_buf, function()
-                        vim.cmd("edit")
-                    end)
-                else
-                    vim.api.nvim_set_current_buf(new_buf)
-                end
-
-                M.active_buffers[word] = new_buf
+            if M.active_buffers[key] == nil then
+                -- bufadd reuses an existing buffer for this path if there is one
+                local new_buf = vim.fn.bufadd(abs)
+                vim.bo[new_buf].buflisted = true
+                vim.fn.bufload(new_buf)
+                M.active_buffers[key] = new_buf
             end
-            if not vim.api.nvim_win_is_valid(M.parent_win) then
-                vim.cmd.split()
-            end
-            vim.api.nvim_win_set_buf(M.parent_win,M.active_buffers[word])
-            if vim.api.nvim_win_is_valid(M.state.win) then
-                vim.api.nvim_win_hide(M.state.win)
-            end
-        end, {buffer = M.state.buf, nowait = true})
+        end
+
+        if not vim.api.nvim_win_is_valid(M.parent_win) then
+            vim.cmd.split()
+            M.parent_win = vim.api.nvim_get_current_win()
+        end
+        vim.api.nvim_win_set_buf(M.parent_win, M.active_buffers[key])
+        if vim.api.nvim_win_is_valid(M.state.win) then
+            vim.api.nvim_win_hide(M.state.win)
+        end
+      end, { buffer = M.state.buf, nowait = true })
+
+      local group = vim.api.nvim_create_augroup("FloatingBuffers", { clear = true })
+      vim.api.nvim_create_autocmd({'InsertLeave','TextChanged'}, {
+          group = group,
+          buffer = M.state.buf,
+          callback = function()
+              close_deleted_buffers()
+          end,
+      })
+      vim.api.nvim_create_user_command("QuickBufLs", function()
+          print(vim.inspect(M.active_buffers))
 
 
-    local group = vim.api.nvim_create_augroup("FloatingBuffers", { clear = true })
-    vim.api.nvim_create_autocmd({'InsertLeave','TextChanged'}, {
-        group = group,
-        buffer = M.state.buf,
-        callback = function()
-            close_deleted_buffers()
-        end,
-    })
-    vim.api.nvim_create_user_command("QuickBufLs", function()
-        print(vim.inspect(M.active_buffers))
+      end, {})
 
+      vim.api.nvim_create_user_command("QuickBufDebug", function()
+          vim.ui.input( { prompt = "This buffer is not saved are you sure you want to delete it? [y/n]"}, function(input)
+              if input == "y" then
+                  print("ok")
+              else
+                  print("dang")
+              end
+          end)
+      end, {})
 
-    end, {})
-
-    vim.api.nvim_create_user_command("QuickBufDebug", function()
-        vim.ui.input( { prompt = "This buffer is not saved are you sure you want to delete it? [y/n]"}, function(input)
-            if input == "y" then
-                print("ok")
-            else
-                print("dang")
-            end
-        end)
-    end, {})
-
-    vim.api.nvim_create_user_command("QuickBufRestart", function()
-        M.active_buffers = {}
-        create_win()
-        M.active_buffers = {}
-        vim.cmd("QuickBufToggle")
-    end, {})
-
-
-
+      vim.api.nvim_create_user_command("QuickBufRestart", function()
+          M.active_buffers = {}
+          create_win()
+          M.active_buffers = {}
+          vim.cmd("QuickBufToggle")
+      end, {})
 end
-
 
 return M
